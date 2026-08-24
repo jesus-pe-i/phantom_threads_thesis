@@ -8,34 +8,20 @@ The main contribution is **M3**, a hierarchical Bayesian shrinkage prior that al
 
 ## Network target
 
-For a VAR
+The VAR contains `K` multivariate units, each observed through `m` series. Each lag coefficient matrix is therefore divided into `K × K` blocks.
 
-[
-y_t = \sum_{\ell=1}^{p} A_\ell y_{t-\ell} + u_t,
-]
+A block `A[i, j, l]` contains the lag-`l` predictive effects from unit `j` to unit `i`:
 
-each lag matrix is partitioned into blocks
+**sender `j` → receiver `i`**
 
-[
-A_{ij,\ell} \in \mathbb{R}^{m\times m},
-]
+Network strength is measured from the Frobenius norm of each coefficient block, scaled by the number of variables per unit.
 
-where (A_{ij,\ell}) represents the lag-(\ell) predictive relationship
+The benchmark treats these blocks as the main inferential target and evaluates separately:
 
-[
-j \rightarrow i.
-]
-
-Interaction strength is measured as
-
-[
-s_{ij,\ell}
-===========
-
-\frac{\lVert A_{ij,\ell}\rVert_F}{m}.
-]
-
-The benchmark therefore evaluates network topology, lag attribution, active-signal recovery, and inactive leakage separately.
+* network topology recovery;
+* lag attribution;
+* active interaction-strength recovery; and
+* leakage into inactive relationships.
 
 ## Models
 
