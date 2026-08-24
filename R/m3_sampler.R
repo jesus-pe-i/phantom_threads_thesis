@@ -28,9 +28,9 @@ make_m3_control <- function(
       "bhattacharya"
     ),
     q_update = c(
-      "transport_after_beta",
+      "gibbs_end",
       "gibbs_after_beta",
-      "gibbs_end"
+      "transport_after_beta"
     ),
     q_transport_global_probability = 0.25,
     use_c_asis = TRUE,

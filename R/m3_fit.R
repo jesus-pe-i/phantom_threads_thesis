@@ -264,9 +264,9 @@ fit_m3 <- function(
       "bhattacharya"
     ),
     q_update = c(
-      "transport_after_beta",
+      "gibbs_end",
       "gibbs_after_beta",
-      "gibbs_end"
+      "transport_after_beta"
     ),
     gc_id = NULL,
     gq_id = NULL,
@@ -284,9 +284,9 @@ fit_m3 <- function(
     tau_scale = NULL,
     p0 = NULL,
     q_grid = seq(
-      -log(10),
-      log(10),
-      length.out = 17L
+      -log(1000),
+      log(1000),
+      length.out = 49L
     ),
     q_prob = NULL,
     sigma_a = 3,

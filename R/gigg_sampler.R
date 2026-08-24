@@ -209,6 +209,25 @@ gigg_draw_matrix <- function(
     draws,
     parameters) {
   
+  draws <- as.integer(
+    draws
+  )
+  
+  parameters <- as.integer(
+    parameters
+  )
+  
+  if (parameters == 0L) {
+    
+    return(
+      matrix(
+        numeric(0L),
+        nrow = draws,
+        ncol = 0L
+      )
+    )
+  }
+  
   x <- as.matrix(
     x
   )
@@ -222,7 +241,9 @@ gigg_draw_matrix <- function(
       )
     )
   ) {
-    x <- t(x)
+    x <- t(
+      x
+    )
   }
   
   if (
@@ -251,9 +272,6 @@ gigg_monitor_names <- function(
   
   N <- structure$data$N
   K <- structure$dimensions$n_units
-  
-  
-  # Coefficient monitors -----
   
   pair_suffix <- function(
     index) {
@@ -286,7 +304,31 @@ gigg_monitor_names <- function(
   }
   
   
-  # Block monitors -----
+  add_prefix <- function(
+    prefix,
+    suffix) {
+    
+    if (length(suffix) == 0L) {
+      return(
+        character(0L)
+      )
+    }
+    
+    paste0(
+      prefix,
+      suffix
+    )
+  }
+  
+  
+  beta_suffix <- pair_suffix(
+    beta_index
+  )
+  
+  lambda_suffix <- pair_suffix(
+    lambda_index
+  )
+  
   
   if (length(gamma_index) == 0L) {
     
@@ -304,10 +346,12 @@ gigg_monitor_names <- function(
     within_lag <-
       zero %% K^2L
     
-    receiver <- within_lag %/%
+    receiver <-
+      within_lag %/%
       K + 1L
     
-    sender <- within_lag %%
+    sender <-
+      within_lag %%
       K + 1L
     
     gamma_suffix <- paste0(
@@ -320,46 +364,32 @@ gigg_monitor_names <- function(
     )
   }
   
-  beta_suffix <-
-    pair_suffix(
-      beta_index
-    )
-  
-  lambda_suffix <-
-    pair_suffix(
-      lambda_index
-    )
   
   list(
-    beta =
-      paste0(
-        "beta",
-        beta_suffix
-      ),
+    beta = add_prefix(
+      "beta",
+      beta_suffix
+    ),
     
-    gamma2 =
-      paste0(
-        "gamma2",
-        gamma_suffix
-      ),
+    gamma2 = add_prefix(
+      "gamma2",
+      gamma_suffix
+    ),
     
-    tau2_gamma2 =
-      paste0(
-        "tau2_gamma2",
-        gamma_suffix
-      ),
+    tau2_gamma2 = add_prefix(
+      "tau2_gamma2",
+      gamma_suffix
+    ),
     
-    lambda2 =
-      paste0(
-        "lambda2",
-        lambda_suffix
-      ),
+    lambda2 = add_prefix(
+      "lambda2",
+      lambda_suffix
+    ),
     
-    effective_variance =
-      paste0(
-        "effective_variance",
-        lambda_suffix
-      )
+    effective_variance = add_prefix(
+      "effective_variance",
+      lambda_suffix
+    )
   )
 }
 

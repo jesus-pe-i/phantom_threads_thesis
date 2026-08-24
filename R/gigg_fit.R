@@ -285,8 +285,8 @@ fit_gigg <- function(
     Y_list,
     p_lags,
     chains = 4L,
-    burnin = 1000L,
-    draws = 8000L,
+    burnin = 500,
+    draws = 1000L,
     thin = 1L,
     seed = 991L,
     beta_algorithm = c(

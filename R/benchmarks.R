@@ -96,23 +96,47 @@ source_benchmark_models <- function(
   
   target_environment <- parent.frame()
   
+  old_directory <- getwd()
+  
+  on.exit(
+    setwd(
+      old_directory
+    ),
+    add = TRUE
+  )
+  
+  setwd(
+    root
+  )
+  
   for (file in benchmark_source_files) {
     
-    path <- file.path(
-      root,
-      file
-    )
-    
-    if (!file.exists(path)) {
+    if (!file.exists(file)) {
       stop(
         "Missing benchmark source file: ",
-        path
+        file
       )
     }
     
     source(
-      path,
+      file,
       local = target_environment
+    )
+  }
+  
+  native_loaders <- c(
+    "load_half_t_cpp",
+    "load_m3_cpp",
+    "load_gigg_cpp"
+  )
+  
+  for (loader in native_loaders) {
+    
+    get(
+      loader,
+      envir = target_environment
+    )(
+      rebuild = FALSE
     )
   }
   
