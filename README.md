@@ -2,7 +2,7 @@
 
 Replication code for ***Phantom Threads: Structured Priors for Network Recovery on Block VAR Models***.
 
-This repository contains the estimation, simulation, benchmarking, and validation code developed for the thesis. The project studies high-dimensional VARs in which variables are grouped into multivariate units, so that the VAR coefficient matrices define a **directed, lag-specific network between units**.
+This repository contains the estimation, simulation, benchmarking, validation, and empirical-analysis code developed for the thesis. The project studies high-dimensional VARs in which variables are grouped into multivariate units, so that the VAR coefficient matrices define a **directed, lag-specific network between units**.
 
 The main contribution is **M3**, a hierarchical Bayesian shrinkage prior that aligns shrinkage with the unit-to-unit-lag blocks defining the network. The thesis also adapts the **GIGG** prior to the Block VAR setting and compares both methods against Bayesian, penalised, and structurally restricted alternatives.
 
@@ -41,15 +41,26 @@ The Bayesian models use purpose-built C++ Gibbs samplers through `RcppArmadillo`
 
 ```text
 phantom_threads_thesis/
-├── R/                  # R model, simulation and benchmark infrastructure
-├── src/                # C++ Bayesian sampler backends
+├── R/                          # Model, simulation and benchmark infrastructure
+├── src/                        # C++ Bayesian sampler backends
+├── data/
+│   └── dgp_bank/               # Frozen simulation DGP bank
 ├── scripts/
-│   ├── simulation/     # DGP review utilities
-│   └── validation/     # Integration and reproducibility checks
+│   ├── analysis_mexican_banks.R
+│   ├── run_bayesian_benchmarks.R
+│   ├── run_bayesian_full_noncomplex.R
+│   ├── run_non_bayesian_benchmarks.R
+│   ├── run_non_bayesian_full_noncomplex.R
+│   ├── simulation/
+│   │   └── review_dgp_bank.R
+│   └── validation/
+│       ├── validate_var_core.R
+│       ├── validate_bayesian_models.R
+│       └── validate_benchmarks.R
 └── README.md
 ```
 
-The main model implementations follow the pattern
+The main Bayesian model implementations follow the pattern
 
 ```text
 R/m3_structure.R
@@ -78,6 +89,8 @@ install.packages(
   c(
     "Rcpp",
     "RcppArmadillo",
+    "data.table",
+    "urca",
     "adelie",
     "BigVAR",
     "mclust"
@@ -85,7 +98,9 @@ install.packages(
 )
 ```
 
-A working C++ toolchain is also required.
+Additional estimator-specific dependencies may be required by MAR and NIRVAR.
+
+A working C++ toolchain is also required for the Bayesian samplers.
 
 ## Basic usage
 
@@ -149,6 +164,67 @@ fits <- fit_benchmarks(
 
 Common outputs include estimated VAR coefficients and lag-specific and unit-level block-network strengths.
 
+## Simulation benchmark
+
+The frozen DGP bank used by the public simulation infrastructure is included under:
+
+```text
+data/dgp_bank/
+```
+
+The DGP definitions can be reviewed with:
+
+```r
+source("scripts/simulation/review_dgp_bank.R")
+```
+
+The public benchmark campaign runners are:
+
+```text
+scripts/run_bayesian_benchmarks.R
+scripts/run_non_bayesian_benchmarks.R
+scripts/run_bayesian_full_noncomplex.R
+scripts/run_non_bayesian_full_noncomplex.R
+```
+
+These scripts use the shared benchmark infrastructure in `R/` and the frozen DGP bank in `data/dgp_bank/`.
+
+## Mexican banking application
+
+The thesis applies the framework to a monthly panel of 14 Mexican banks observed through four balance-sheet and credit-risk variables, producing a 56-dimensional Block VAR system.
+
+The public empirical analysis is:
+
+```text
+scripts/analysis_mexican_banks.R
+```
+
+It reconstructs the final banking panel, performs deterministic preprocessing, compares lag orders using information criteria and expanding-window forecasts, fits gEN, HLAG, GIGG and M3, and reports headline cross-bank network summaries.
+
+### Mexican banking data
+
+The frozen CNBV dataset used by the empirical application is distributed separately from the Git repository because of its size.
+
+Download the dataset from the GitHub Release:
+
+[data-mex-v1](https://github.com/jesus-pe-i/phantom_threads_thesis/releases/tag/data-mex-v1)
+
+Extract the release asset so that the required files are located at:
+
+```text
+data/mexican_banks/
+├── sh_datos_40.csv
+└── cat_instituciones_40.csv
+```
+
+The empirical application can then be run from the repository root with:
+
+```r
+source("scripts/analysis_mexican_banks.R")
+```
+
+The script reproduces the public empirical pipeline directly from the frozen data and does not write fitted objects or result files to disk.
+
 ## Validation
 
 The repository includes permanent validation scripts:
@@ -159,7 +235,7 @@ Rscript scripts/validation/validate_bayesian_models.R
 Rscript scripts/validation/validate_benchmarks.R
 ```
 
-These check the common VAR representation, the three Bayesian engines, fixed-seed reproducibility, and the unified benchmark interface.
+These cover the common VAR representation, Bayesian sampler infrastructure, fixed-seed reproducibility, model loading and dispatch, coefficient and network reconstruction, nested benchmark records, benchmark metrics, Bayesian settings, runtimes, and direct-versus-dispatch equivalence.
 
 ## Thesis results
 
@@ -167,21 +243,23 @@ The simulation study considers block-diagonal, community, core-periphery, hub, a
 
 Overall, no estimator dominates every inferential target. M3 provides particularly strong control of inactive network leakage and strong topology recovery, while GIGG allows greater flexibility in recovering active magnitudes. The group elastic net often provides a strong compromise, while HLAG performs well for active magnitudes but can be weaker for lag attribution.
 
-The thesis also applies the framework to a 56-dimensional panel of 14 Mexican banks, finding dominant own-bank dynamics alongside a structured cross-bank predictive network.
+The Mexican banking application finds dominant own-bank dynamics alongside a structured cross-bank predictive network. Across the four empirical estimators, Banregio emerges as the strongest sender, while the Bayesian specifications recover closely related rankings of cross-bank relationships.
 
 ## Reproducibility note
 
-This repository contains the reusable model, simulation, benchmark, and validation infrastructure.
+This repository contains the reusable model, simulation, benchmark, validation, and empirical-analysis infrastructure used in the thesis.
 
-The full frozen DGP bank, simulation campaign outputs, Mexican banking data, and thesis figure/table artifacts are not currently included, so the repository alone does not reproduce every numerical result in the thesis.
+The frozen simulation DGP bank is included directly in the repository. The Mexican banking data are provided separately through the `data-mex-v1` GitHub Release because of their size.
+
+Full simulation campaign outputs and thesis figure/table artifacts are not included. The repository is therefore intended to reproduce the modelling and analysis pipelines rather than serve as an archive of every intermediate or generated thesis artifact.
 
 ## Citation
 
 If you use this code, please cite:
 
-> Piñera Esquivel, Jesus Antonio (2026).
+> Pinera Esquivel, Jesus Antonio (2026).  
 > ***Phantom Threads: Structured Priors for Network Recovery on Block VAR Models.***
 
 ## Author
 
-**Jesus Antonio Piñera Esquivel**
+**Jesus Antonio Pinera Esquivel**
