@@ -1,4 +1,4 @@
-# Runs one Bayesian benchmark estimator over frozen simulation records.
+# Runs one Bayesian benchmark estimator over the full ordinary DGP bank.
 #
 # Records are fitted in parallel. Each worker retains chain draws only long
 # enough to compute mixing diagnostics, then returns compact benchmark output.
@@ -12,17 +12,94 @@ rm(
 # Settings -----
 
 dgp_ids <- c(
+  
+  
+  # Block diagonal -----
+  
   "blockdiag_n6_m3_p2",
-  "communities_n6_m3_p2",
+  
+  "blockdiag_n6_m3_p1",
+  "blockdiag_n6_m3_p3",
+  "blockdiag_n6_m3_p4",
+  "blockdiag_n6_m3_p5",
+  
+  "blockdiag_n6_m2_p2",
   "blockdiag_n6_m4_p2",
-  "communities_n6_m4_p2"
+  "blockdiag_n6_m5_p2",
+  "blockdiag_n6_m6_p2",
+  
+  "blockdiag_n4_m3_p2",
+  "blockdiag_n8_m3_p2",
+  "blockdiag_n10_m3_p2",
+  
+  
+  # Communities -----
+  
+  "communities_n6_m3_p2",
+  
+  "communities_n6_m3_p1",
+  "communities_n6_m3_p3",
+  "communities_n6_m3_p4",
+  "communities_n6_m3_p5",
+  
+  "communities_n6_m2_p2",
+  "communities_n6_m4_p2",
+  "communities_n6_m5_p2",
+  "communities_n6_m6_p2",
+  
+  "communities_n4_m3_p2",
+  "communities_n8_m3_p2",
+  "communities_n10_m3_p2",
+  
+  
+  # Core-periphery -----
+  
+  "coreperiphery_n6_m3_p2",
+  
+  "coreperiphery_n6_m3_p1",
+  "coreperiphery_n6_m3_p3",
+  "coreperiphery_n6_m3_p4",
+  "coreperiphery_n6_m3_p5",
+  
+  "coreperiphery_n6_m2_p2",
+  "coreperiphery_n6_m4_p2",
+  "coreperiphery_n6_m5_p2",
+  "coreperiphery_n6_m6_p2",
+  
+  "coreperiphery_n4_m3_p2",
+  "coreperiphery_n8_m3_p2",
+  "coreperiphery_n10_m3_p2",
+  
+  
+  # Hubs -----
+  
+  "hubs_n6_m3_p2",
+  
+  "hubs_n6_m3_p1",
+  "hubs_n6_m3_p3",
+  "hubs_n6_m3_p4",
+  "hubs_n6_m3_p5",
+  
+  "hubs_n6_m2_p2",
+  "hubs_n6_m4_p2",
+  "hubs_n6_m5_p2",
+  "hubs_n6_m6_p2",
+  
+  "hubs_n4_m3_p2",
+  "hubs_n8_m3_p2",
+  "hubs_n10_m3_p2"
 )
 
 model <- "half_t"
 
 T_grid <- c(
   50L,
+  100L,
   150L,
+  200L,
+  250L,
+  300L,
+  350L,
   400L
 )
 
@@ -30,7 +107,23 @@ seeds <- c(
   101L,
   202L,
   303L,
-  404L
+  404L,
+  505L,
+  606L,
+  707L,
+  808L,
+  909L,
+  1000L,
+  1101L,
+  1202L,
+  1303L,
+  1404L,
+  1505L,
+  1606L,
+  1707L,
+  1808L,
+  1909L,
+  2000L
 )
 
 workers <- 12L
@@ -89,6 +182,31 @@ output_root <- file.path(
   "outputs",
   "benchmark_runs"
 )
+
+
+# DGP bank -----
+
+missing_dgps <- dgp_ids[
+  !dir.exists(
+    file.path(
+      "data",
+      "dgp_bank",
+      dgp_ids
+    )
+  )
+]
+
+if (length(missing_dgps) > 0L) {
+  
+  stop(
+    "Missing DGPs from data/dgp_bank: ",
+    paste(
+      missing_dgps,
+      collapse = ", "
+    )
+  )
+}
+
 
 # Parallel settings -----
 
@@ -312,6 +430,8 @@ worker_files <- c(
   "R/benchmark_bayesian_diagnostics.R"
 )
 
+campaign_start <- Sys.time()
+
 cluster <- parallel::makePSOCKcluster(
   workers
 )
@@ -382,6 +502,8 @@ tryCatch(
   {
     
     for (dgp_id in dgp_ids) {
+      
+      dgp_start <- Sys.time()
       
       cat(
         "\n",
@@ -506,7 +628,18 @@ tryCatch(
         nrow(results),
         " fits and ",
         nrow(diagnostics),
-        " diagnostic rows.\n",
+        " diagnostic rows in ",
+        round(
+          as.numeric(
+            difftime(
+              Sys.time(),
+              dgp_start,
+              units = "mins"
+            )
+          ),
+          2L
+        ),
+        " minutes.\n",
         sep = ""
       )
       
@@ -528,4 +661,25 @@ tryCatch(
       cluster
     )
   }
+)
+
+
+# Runtime -----
+
+cat(
+  "\nFull ",
+  model,
+  " campaign wall time: ",
+  round(
+    as.numeric(
+      difftime(
+        Sys.time(),
+        campaign_start,
+        units = "hours"
+      )
+    ),
+    3L
+  ),
+  " hours.\n",
+  sep = ""
 )
