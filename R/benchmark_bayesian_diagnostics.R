@@ -1,5 +1,6 @@
 # Builds shared Bayesian monitoring plans and reduces retained MCMC traces
 # to compact convergence and mixing diagnostics for benchmark campaigns.
+# Half-t and GIGG also report effective coefficient shrinkage multipliers.
 
 
 # Diagnostic seed -----
@@ -544,6 +545,21 @@ make_bayesian_diagnostic_parameter_names <- function(
     )
   }
   
+  if (family == "omega") {
+    
+    parameter <- sub(
+      "^effective_variance_",
+      "",
+      parameter
+    )
+    
+    parameter <- sub(
+      "^omega_",
+      "",
+      parameter
+    )
+  }
+  
   if (
     model == "m3" &&
     family == "lambda"
@@ -557,6 +573,317 @@ make_bayesian_diagnostic_parameter_names <- function(
   }
   
   parameter
+}
+
+
+# Half-t effective scales -----
+
+make_half_t_omega_draws <- function(
+    fit) {
+  
+  if (
+    !identical(
+      fit$model,
+      "half_t"
+    )
+  ) {
+    stop(
+      "Half-t omega draws require a Half-t fit"
+    )
+  }
+  
+  if (
+    is.null(fit$chain_results) ||
+    is.null(fit$dimensions$N) ||
+    is.null(fit$dimensions$p_lags) ||
+    is.null(fit$global_grouping)
+  ) {
+    stop(
+      "Half-t fit is incomplete for omega diagnostics"
+    )
+  }
+  
+  chain_results <-
+    fit$chain_results
+  
+  N <- as.integer(
+    fit$dimensions$N
+  )
+  
+  p_lags <- as.integer(
+    fit$dimensions$p_lags
+  )
+  
+  k <-
+    N *
+    p_lags
+  
+  global_grouping <-
+    fit$global_grouping
+  
+  if (
+    !global_grouping %in%
+    c(
+      "all",
+      "self_diagonal"
+    )
+  ) {
+    stop(
+      "Unknown Half-t global grouping"
+    )
+  }
+  
+  
+  ## Monitor coordinates -----
+  
+  monitor_list <- lapply(
+    chain_results,
+    function(chain) {
+      
+      monitor <- as.matrix(
+        chain$monitor$lambda2
+      )
+      
+      if (
+        is.null(dim(monitor)) ||
+        ncol(monitor) != 2L
+      ) {
+        stop(
+          "Invalid Half-t lambda monitor"
+        )
+      }
+      
+      storage.mode(monitor) <-
+        "integer"
+      
+      colnames(monitor) <- c(
+        "row",
+        "equation"
+      )
+      
+      monitor
+    }
+  )
+  
+  monitor <-
+    monitor_list[[1L]]
+  
+  for (chain in seq_along(
+    monitor_list
+  )) {
+    
+    if (
+      !identical(
+        monitor,
+        monitor_list[[chain]]
+      )
+    ) {
+      stop(
+        "Half-t lambda monitor order differs across chains"
+      )
+    }
+  }
+  
+  if (
+    any(
+      monitor[, 1L] < 1L |
+      monitor[, 1L] > k |
+      monitor[, 2L] < 1L |
+      monitor[, 2L] > N
+    )
+  ) {
+    stop(
+      "Half-t lambda monitor contains invalid coordinates"
+    )
+  }
+  
+  
+  ## Parameter map -----
+  
+  lambda_reference <- as.matrix(
+    chain_results[[1L]]$draws$lambda2
+  )
+  
+  parameter <-
+    make_bayesian_diagnostic_parameter_names(
+      model = "half_t",
+      family = "lambda",
+      draw_name = "lambda2",
+      draws =
+        lambda_reference
+    )
+  
+  if (
+    ncol(lambda_reference) !=
+    nrow(monitor) ||
+    length(parameter) !=
+    nrow(monitor)
+  ) {
+    stop(
+      "Half-t lambda monitor and retained draws do not align"
+    )
+  }
+  
+  if (nrow(monitor) == 0L) {
+    
+    return(
+      list(
+        parameter =
+          character(0L),
+        
+        draws =
+          lapply(
+            chain_results,
+            function(chain) {
+              as.matrix(
+                chain$draws$lambda2
+              )
+            }
+          )
+      )
+    )
+  }
+  
+  row <-
+    monitor[, 1L]
+  
+  equation <-
+    monitor[, 2L]
+  
+  lag <- (
+    row - 1L
+  ) %/%
+    N +
+    1L
+  
+  sender <- (
+    row - 1L
+  ) %%
+    N +
+    1L
+  
+  phi2 <-
+    1 /
+    lag^2
+  
+  if (
+    global_grouping ==
+    "all"
+  ) {
+    
+    tau_group <- rep(
+      1L,
+      nrow(monitor)
+    )
+    
+  } else {
+    
+    tau_group <- ifelse(
+      sender ==
+        equation,
+      1L,
+      2L
+    )
+  }
+  
+  
+  ## Effective draws -----
+  
+  omega_draws <- lapply(
+    seq_along(
+      chain_results
+    ),
+    function(chain_index) {
+      
+      chain <-
+        chain_results[[chain_index]]
+      
+      lambda_draws <- as.matrix(
+        chain$draws$lambda2
+      )
+      
+      tau_draws <- as.matrix(
+        chain$draws$tau2
+      )
+      
+      if (
+        ncol(lambda_draws) !=
+        nrow(monitor)
+      ) {
+        stop(
+          "Unexpected Half-t lambda draw dimensions"
+        )
+      }
+      
+      if (
+        nrow(lambda_draws) !=
+        nrow(tau_draws)
+      ) {
+        stop(
+          "Half-t lambda and tau draws retain different iterations"
+        )
+      }
+      
+      if (
+        ncol(tau_draws) <
+        max(tau_group)
+      ) {
+        stop(
+          "Half-t tau draws do not contain the required groups"
+        )
+      }
+      
+      chain_parameter <-
+        make_bayesian_diagnostic_parameter_names(
+          model = "half_t",
+          family = "lambda",
+          draw_name = "lambda2",
+          draws =
+            lambda_draws
+        )
+      
+      if (
+        !identical(
+          parameter,
+          chain_parameter
+        )
+      ) {
+        stop(
+          "Half-t lambda parameter order differs across chains"
+        )
+      }
+      
+      omega <-
+        lambda_draws *
+        tau_draws[
+          ,
+          tau_group,
+          drop = FALSE
+        ]
+      
+      omega <- sweep(
+        omega,
+        2L,
+        phi2,
+        FUN = "*"
+      )
+      
+      colnames(omega) <- paste0(
+        "omega_",
+        parameter
+      )
+      
+      omega
+    }
+  )
+  
+  list(
+    parameter =
+      parameter,
+    
+    draws =
+      omega_draws
+  )
 }
 
 
@@ -590,9 +917,13 @@ extract_bayesian_diagnostic_draws <- function(
     )
   }
   
-  chain_results <- fit$chain_results
+  chain_results <-
+    fit$chain_results
   
-  if (length(chain_results) < 2L) {
+  if (
+    length(chain_results) <
+    2L
+  ) {
     stop(
       "At least two chains are required for diagnostics"
     )
@@ -612,12 +943,14 @@ extract_bayesian_diagnostic_draws <- function(
     half_t = c(
       beta = "beta",
       lambda = "lambda2",
+      omega = "derived",
       tau = "tau2"
     ),
     
     gigg = c(
       beta = "beta",
       lambda = "lambda2",
+      omega = "effective_variance",
       gamma = "gamma2",
       tau = "tau2"
     )
@@ -628,6 +961,36 @@ extract_bayesian_diagnostic_draws <- function(
   for (family in names(
     draw_spec
   )) {
+    
+    
+    ## Derived Half-t omega -----
+    
+    if (
+      model == "half_t" &&
+      family == "omega"
+    ) {
+      
+      omega <-
+        make_half_t_omega_draws(
+          fit
+        )
+      
+      if (
+        length(
+          omega$parameter
+        ) >
+        0L
+      ) {
+        
+        output[[family]] <-
+          omega
+      }
+      
+      next
+    }
+    
+    
+    ## Stored draws -----
     
     draw_name <- unname(
       draw_spec[family]
@@ -730,16 +1093,20 @@ extract_bayesian_diagnostic_draws <- function(
       )
     }
     
-    if (parameters_per_chain[1L] == 0L) {
+    if (
+      parameters_per_chain[1L] ==
+      0L
+    ) {
       next
     }
     
-    parameter <- make_bayesian_diagnostic_parameter_names(
-      model = model,
-      family = family,
-      draw_name = draw_name,
-      draws = chain_draws[[1L]]
-    )
+    parameter <-
+      make_bayesian_diagnostic_parameter_names(
+        model = model,
+        family = family,
+        draw_name = draw_name,
+        draws = chain_draws[[1L]]
+      )
     
     for (chain in seq_along(
       chain_draws
@@ -774,6 +1141,31 @@ extract_bayesian_diagnostic_draws <- function(
     )
   }
   
+  
+  ## Effective-scale pairing -----
+  
+  if (
+    all(
+      c(
+        "lambda",
+        "omega"
+      ) %in%
+      names(output)
+    )
+  ) {
+    
+    if (
+      !identical(
+        output$lambda$parameter,
+        output$omega$parameter
+      )
+    ) {
+      stop(
+        "Lambda and omega diagnostic coordinates do not align"
+      )
+    }
+  }
+  
   output
 }
 
@@ -794,18 +1186,21 @@ summarise_bayesian_diagnostics <- function(
     )
   }
   
-  extracted <- extract_bayesian_diagnostic_draws(
-    fit
-  )
+  extracted <-
+    extract_bayesian_diagnostic_draws(
+      fit
+    )
   
   rows <- list()
+  
   row_index <- 0L
   
   for (family in names(
     extracted
   )) {
     
-    family_draws <- extracted[[family]]
+    family_draws <-
+      extracted[[family]]
     
     n_chains <- length(
       family_draws$draws
@@ -845,7 +1240,8 @@ summarise_bayesian_diagnostics <- function(
       draw_array[
         ,
         chain,
-      ] <- family_draws$draws[[chain]]
+      ] <-
+        family_draws$draws[[chain]]
     }
     
     posterior_draws <-
@@ -871,7 +1267,9 @@ summarise_bayesian_diagnostics <- function(
       )
     }
     
-    row_index <- row_index + 1L
+    row_index <-
+      row_index +
+      1L
     
     rows[[row_index]] <- data.frame(
       family =
