@@ -245,7 +245,7 @@ evaluate_mar <- function(
 fit_mar_core <- function(
     Y_array,
     p_lags,
-    max_iter = 100L,
+    max_iter = 200L,
     tol = 1e-8,
     solver_tol = 1e-10,
     init_B = NULL) {
@@ -578,7 +578,7 @@ fit_mar_multistart <- function(
     p_lags,
     n_starts = 3L,
     seed = 991L,
-    max_iter = 100L,
+    max_iter = 200L,
     tol = 1e-8,
     solver_tol = 1e-10) {
   
@@ -781,7 +781,7 @@ fit_mar <- function(
     p_lags,
     n_starts = 3L,
     seed = 991L,
-    max_iter = 100L,
+    max_iter = 200L,
     tol = 1e-8,
     solver_tol = 1e-10,
     selected_eps = 1e-12) {

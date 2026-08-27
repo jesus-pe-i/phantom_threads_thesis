@@ -1,6 +1,6 @@
 # Builds shared Bayesian monitoring plans and reduces retained MCMC traces
 # to compact convergence and mixing diagnostics for benchmark campaigns.
-# Half-t and GIGG also report effective coefficient shrinkage multipliers.
+# All Bayesian models also report effective coefficient shrinkage multipliers.
 
 
 # Diagnostic seed -----
@@ -14,46 +14,28 @@ make_bayesian_diagnostic_seed <- function(
     is.na(record_id) ||
     !nzchar(record_id)
   ) {
-    stop(
-      "record_id must be one non-empty string"
-    )
+    stop("record_id must be one non-empty string")
   }
   
   if (
     length(seed) != 1L ||
     !is.finite(seed)
   ) {
-    stop(
-      "seed must be one finite value"
-    )
+    stop("seed must be one finite value")
   }
   
   modulus <- 2147483646
-  
-  hash <-
-    abs(
-      as.numeric(seed)
-    ) %%
-    modulus
-  
-  bytes <- utf8ToInt(
-    enc2utf8(
-      record_id
-    )
-  )
+  hash <- abs(as.numeric(seed)) %% modulus
+  bytes <- utf8ToInt(enc2utf8(record_id))
   
   for (byte in bytes) {
-    
     hash <- (
       hash * 131 +
         byte
-    ) %%
-      modulus
+    ) %% modulus
   }
   
-  as.integer(
-    hash + 1
-  )
+  as.integer(hash + 1)
 }
 
 
@@ -69,54 +51,28 @@ make_bayesian_monitor_plan <- function(
     is.null(record$id) ||
     is.null(record$dimensions)
   ) {
-    stop(
-      "record must contain id and dimensions"
-    )
+    stop("record must contain id and dimensions")
   }
   
-  required_dimensions <- c(
+  dimensions <- record$dimensions
+  
+  required <- c(
     "n_units",
     "m",
     "N",
     "p_lags"
   )
   
-  if (
-    !all(
-      required_dimensions %in%
-      names(
-        record$dimensions
-      )
-    )
-  ) {
-    stop(
-      "record dimensions are incomplete"
-    )
+  if (!all(required %in% names(dimensions))) {
+    stop("record dimensions are incomplete")
   }
   
-  n_units <- as.integer(
-    record$dimensions$n_units
-  )
-  
-  m <- as.integer(
-    record$dimensions$m
-  )
-  
-  N <- as.integer(
-    record$dimensions$N
-  )
-  
-  p_lags <- as.integer(
-    record$dimensions$p_lags
-  )
-  
-  max_blocks <- as.integer(
-    max_blocks
-  )
-  
-  extra_beta <- as.integer(
-    extra_beta
-  )
+  n_units <- as.integer(dimensions$n_units)
+  m <- as.integer(dimensions$m)
+  N <- as.integer(dimensions$N)
+  p_lags <- as.integer(dimensions$p_lags)
+  max_blocks <- as.integer(max_blocks)
+  extra_beta <- as.integer(extra_beta)
   
   if (
     n_units < 1L ||
@@ -124,18 +80,14 @@ make_bayesian_monitor_plan <- function(
     N != n_units * m ||
     p_lags < 1L
   ) {
-    stop(
-      "Invalid benchmark dimensions"
-    )
+    stop("Invalid benchmark dimensions")
   }
   
   if (
     max_blocks < 0L ||
     extra_beta < 0L
   ) {
-    stop(
-      "Monitor counts must be non-negative"
-    )
+    stop("Monitor counts must be non-negative")
   }
   
   diagnostic_seed <- make_bayesian_diagnostic_seed(
@@ -146,15 +98,14 @@ make_bayesian_monitor_plan <- function(
   
   ## Preserve RNG state -----
   
-  had_random_seed <- exists(
+  had_seed <- exists(
     ".Random.seed",
     envir = .GlobalEnv,
     inherits = FALSE
   )
   
-  if (had_random_seed) {
-    
-    previous_random_seed <- get(
+  if (had_seed) {
+    old_seed <- get(
       ".Random.seed",
       envir = .GlobalEnv,
       inherits = FALSE
@@ -163,15 +114,12 @@ make_bayesian_monitor_plan <- function(
   
   on.exit(
     {
-      
-      if (had_random_seed) {
-        
+      if (had_seed) {
         assign(
           ".Random.seed",
-          previous_random_seed,
+          old_seed,
           envir = .GlobalEnv
         )
-        
       } else if (
         exists(
           ".Random.seed",
@@ -179,7 +127,6 @@ make_bayesian_monitor_plan <- function(
           inherits = FALSE
         )
       ) {
-        
         rm(
           list = ".Random.seed",
           envir = .GlobalEnv
@@ -189,35 +136,27 @@ make_bayesian_monitor_plan <- function(
     add = TRUE
   )
   
-  set.seed(
-    diagnostic_seed
-  )
+  set.seed(diagnostic_seed)
   
   
   ## Blocks -----
   
-  n_blocks <-
-    n_units^2L *
-    p_lags
-  
+  n_blocks <- n_units^2L * p_lags
   n_monitor_blocks <- min(
     max_blocks,
     n_blocks
   )
   
-  if (n_monitor_blocks > 0L) {
-    
-    blocks <- sort(
+  blocks <- if (n_monitor_blocks > 0L) {
+    sort(
       sample.int(
-        n = n_blocks,
-        size = n_monitor_blocks,
+        n_blocks,
+        n_monitor_blocks,
         replace = FALSE
       )
     )
-    
   } else {
-    
-    blocks <- integer(0L)
+    integer(0L)
   }
   
   
@@ -231,31 +170,18 @@ make_bayesian_monitor_plan <- function(
   
   if (n_monitor_blocks > 0L) {
     
-    for (index in seq_len(
-      n_monitor_blocks
-    )) {
+    for (index in seq_len(n_monitor_blocks)) {
       
-      block <- blocks[index]
-      
-      zero <- block - 1L
-      
-      lag <-
-        zero %/%
-        n_units^2L +
-        1L
-      
-      within_lag <-
-        zero %%
-        n_units^2L
+      zero <- blocks[index] - 1L
+      lag <- zero %/% n_units^2L + 1L
+      within_lag <- zero %% n_units^2L
       
       receiver_unit <-
-        within_lag %/%
-        n_units +
+        within_lag %/% n_units +
         1L
       
       sender_unit <-
-        within_lag %%
-        n_units +
+        within_lag %% n_units +
         1L
       
       sender_feature <- sample.int(
@@ -278,19 +204,12 @@ make_bayesian_monitor_plan <- function(
       ) * m +
         receiver_feature
       
-      row <- (
-        lag - 1L
-      ) * N +
-        sender_series
-      
-      equation <-
+      block_beta[index, ] <- c(
+        (
+          lag - 1L
+        ) * N +
+          sender_series,
         receiver_series
-      
-      block_beta[
-        index,
-      ] <- c(
-        row,
-        equation
       )
     }
   }
@@ -298,75 +217,51 @@ make_bayesian_monitor_plan <- function(
   
   ## Extra beta coordinates -----
   
-  k <-
-    N *
-    p_lags
-  
-  n_coefficients <-
-    k *
-    N
+  k <- N * p_lags
+  n_coefficients <- k * N
   
   block_beta_ids <- if (
     nrow(block_beta) > 0L
   ) {
-    
     block_beta[, 1L] +
       (
-        block_beta[, 2L] -
-          1L
-      ) *
-      k
-    
+        block_beta[, 2L] - 1L
+      ) * k
   } else {
-    
     integer(0L)
   }
   
   available_beta <- setdiff(
-    seq_len(
-      n_coefficients
-    ),
+    seq_len(n_coefficients),
     block_beta_ids
   )
   
-  n_extra_beta <- min(
+  n_extra <- min(
     extra_beta,
-    length(
-      available_beta
-    )
+    length(available_beta)
   )
   
-  if (n_extra_beta > 0L) {
+  extra <- if (n_extra > 0L) {
     
-    extra_ids <- sample(
+    ids <- sample(
       available_beta,
-      size = n_extra_beta,
+      n_extra,
       replace = FALSE
     )
     
-    extra_beta_coordinates <- cbind(
+    cbind(
       row = (
-        (
-          extra_ids -
-            1L
-        ) %%
-          k
-      ) +
-        1L,
+        ids - 1L
+      ) %% k + 1L,
       
       equation = (
-        (
-          extra_ids -
-            1L
-        ) %/%
-          k
-      ) +
-        1L
+        ids - 1L
+      ) %/% k + 1L
     )
     
   } else {
     
-    extra_beta_coordinates <- matrix(
+    matrix(
       integer(0L),
       nrow = 0L,
       ncol = 2L
@@ -378,11 +273,10 @@ make_bayesian_monitor_plan <- function(
   
   beta <- rbind(
     block_beta,
-    extra_beta_coordinates
+    extra
   )
   
-  storage.mode(beta) <-
-    "integer"
+  storage.mode(beta) <- "integer"
   
   colnames(beta) <- c(
     "row",
@@ -390,19 +284,56 @@ make_bayesian_monitor_plan <- function(
   )
   
   
+  ## Blocks containing monitored betas -----
+  
+  if (nrow(beta) > 0L) {
+    
+    beta_lag <- (
+      beta[, 1L] - 1L
+    ) %/% N + 1L
+    
+    beta_sender_series <- (
+      beta[, 1L] - 1L
+    ) %% N + 1L
+    
+    beta_receiver_series <-
+      beta[, 2L]
+    
+    beta_sender_unit <- (
+      beta_sender_series - 1L
+    ) %/% m + 1L
+    
+    beta_receiver_unit <- (
+      beta_receiver_series - 1L
+    ) %/% m + 1L
+    
+    beta_blocks <- sort(
+      unique(
+        as.integer(
+          (
+            beta_lag - 1L
+          ) * n_units^2L +
+            (
+              beta_receiver_unit - 1L
+            ) * n_units +
+            beta_sender_unit
+        )
+      )
+    )
+    
+  } else {
+    
+    beta_blocks <- integer(0L)
+  }
+  
+  
   # Output -----
   
   list(
-    seed =
-      diagnostic_seed,
-    
-    blocks =
-      as.integer(
-        blocks
-      ),
-    
-    beta =
-      beta
+    seed = diagnostic_seed,
+    blocks = as.integer(blocks),
+    beta_blocks = as.integer(beta_blocks),
+    beta = beta
   )
 }
 
@@ -424,65 +355,46 @@ make_bayesian_monitor_args <- function(
   
   if (
     is.null(plan$beta) ||
-    is.null(plan$blocks)
+    is.null(plan$blocks) ||
+    is.null(plan$beta_blocks)
   ) {
-    stop(
-      "Invalid Bayesian monitor plan"
-    )
+    stop("Invalid Bayesian monitor plan")
   }
   
-  beta <- as.matrix(
-    plan$beta
+  beta <- as.matrix(plan$beta)
+  blocks <- as.integer(plan$blocks)
+  beta_blocks <- as.integer(
+    plan$beta_blocks
   )
   
-  if (
-    ncol(beta) != 2L
-  ) {
-    stop(
-      "plan$beta must have two columns"
-    )
+  if (ncol(beta) != 2L) {
+    stop("plan$beta must have two columns")
   }
   
-  storage.mode(beta) <-
-    "integer"
+  storage.mode(beta) <- "integer"
   
   colnames(beta) <- c(
     "row",
     "equation"
   )
   
-  blocks <- as.integer(
-    plan$blocks
-  )
-  
   switch(
     model,
     
     m3 = list(
-      monitor_beta =
-        beta,
-      
-      monitor_lambda =
-        blocks
+      monitor_beta = beta,
+      monitor_lambda = beta_blocks
     ),
     
     half_t = list(
-      monitor_beta =
-        beta,
-      
-      monitor_lambda =
-        beta
+      monitor_beta = beta,
+      monitor_lambda = beta
     ),
     
     gigg = list(
-      monitor_beta =
-        beta,
-      
-      monitor_gamma =
-        blocks,
-      
-      monitor_lambda =
-        beta
+      monitor_beta = beta,
+      monitor_gamma = blocks,
+      monitor_lambda = beta
     )
   )
 }
@@ -496,65 +408,32 @@ make_bayesian_diagnostic_parameter_names <- function(
     draw_name,
     draws) {
   
-  parameter <- colnames(
-    draws
-  )
+  parameter <- colnames(draws)
   
   if (
     is.null(parameter) ||
-    length(parameter) !=
-    ncol(draws) ||
-    any(
-      !nzchar(parameter)
-    )
+    length(parameter) != ncol(draws) ||
+    any(!nzchar(parameter))
   ) {
-    
     parameter <- paste0(
       draw_name,
       "_",
-      seq_len(
-        ncol(draws)
-      )
+      seq_len(ncol(draws))
     )
   }
   
-  if (family == "beta") {
-    
-    parameter <- sub(
-      "^beta_",
-      "",
-      parameter
-    )
-  }
+  prefix <- switch(
+    family,
+    beta = "^beta_",
+    lambda = "^lambda2_",
+    gamma = "^gamma2_",
+    omega = "^(effective_variance|omega)_",
+    NULL
+  )
   
-  if (family == "lambda") {
-    
+  if (!is.null(prefix)) {
     parameter <- sub(
-      "^lambda2_",
-      "",
-      parameter
-    )
-  }
-  
-  if (family == "gamma") {
-    
-    parameter <- sub(
-      "^gamma2_",
-      "",
-      parameter
-    )
-  }
-  
-  if (family == "omega") {
-    
-    parameter <- sub(
-      "^effective_variance_",
-      "",
-      parameter
-    )
-    
-    parameter <- sub(
-      "^omega_",
+      prefix,
       "",
       parameter
     )
@@ -564,7 +443,6 @@ make_bayesian_diagnostic_parameter_names <- function(
     model == "m3" &&
     family == "lambda"
   ) {
-    
     parameter <- sub(
       "_s([0-9]+)_r([0-9]+)$",
       "_su\\1_ru\\2",
@@ -576,35 +454,42 @@ make_bayesian_diagnostic_parameter_names <- function(
 }
 
 
-# Half-t effective scales -----
+# M3 effective scales -----
 
-make_half_t_omega_draws <- function(
+make_m3_omega_draws <- function(
     fit) {
   
-  if (
-    !identical(
-      fit$model,
-      "half_t"
-    )
-  ) {
-    stop(
-      "Half-t omega draws require a Half-t fit"
-    )
+  if (!identical(fit$model, "m3")) {
+    stop("M3 omega draws require an M3 fit")
   }
   
   if (
     is.null(fit$chain_results) ||
-    is.null(fit$dimensions$N) ||
-    is.null(fit$dimensions$p_lags) ||
-    is.null(fit$global_grouping)
+    is.null(fit$dimensions) ||
+    is.null(fit$c_group) ||
+    is.null(fit$q_group)
+  ) {
+    stop("M3 fit is incomplete for omega diagnostics")
+  }
+  
+  if (
+    fit$c_group != "self_foreign" ||
+    fit$q_group != "self_foreign"
   ) {
     stop(
-      "Half-t fit is incomplete for omega diagnostics"
+      "M3 omega diagnostics require self_foreign c and q groups"
     )
   }
   
-  chain_results <-
-    fit$chain_results
+  chains <- fit$chain_results
+  
+  n_units <- as.integer(
+    fit$dimensions$n_units
+  )
+  
+  m <- as.integer(
+    fit$dimensions$m
+  )
   
   N <- as.integer(
     fit$dimensions$N
@@ -614,15 +499,384 @@ make_half_t_omega_draws <- function(
     fit$dimensions$p_lags
   )
   
-  k <-
-    N *
-    p_lags
+  k <- N * p_lags
   
-  global_grouping <-
-    fit$global_grouping
+  
+  ## Monitors -----
+  
+  beta_monitors <- lapply(
+    chains,
+    function(chain) {
+      
+      monitor <- as.matrix(
+        chain$monitor$beta
+      )
+      
+      if (
+        is.null(dim(monitor)) ||
+        ncol(monitor) != 2L
+      ) {
+        stop("Invalid M3 beta monitor")
+      }
+      
+      storage.mode(monitor) <- "integer"
+      monitor
+    }
+  )
+  
+  lambda_monitors <- lapply(
+    chains,
+    function(chain) {
+      as.integer(
+        chain$monitor$lambda2
+      )
+    }
+  )
+  
+  beta_monitor <-
+    beta_monitors[[1L]]
+  
+  lambda_monitor <-
+    lambda_monitors[[1L]]
   
   if (
-    !global_grouping %in%
+    !all(
+      vapply(
+        beta_monitors,
+        identical,
+        logical(1L),
+        beta_monitor
+      )
+    )
+  ) {
+    stop(
+      "M3 beta monitor order differs across chains"
+    )
+  }
+  
+  if (
+    !all(
+      vapply(
+        lambda_monitors,
+        identical,
+        logical(1L),
+        lambda_monitor
+      )
+    )
+  ) {
+    stop(
+      "M3 lambda monitor order differs across chains"
+    )
+  }
+  
+  if (
+    any(
+      beta_monitor[, 1L] < 1L |
+      beta_monitor[, 1L] > k |
+      beta_monitor[, 2L] < 1L |
+      beta_monitor[, 2L] > N
+    )
+  ) {
+    stop(
+      "M3 beta monitor contains invalid coordinates"
+    )
+  }
+  
+  
+  ## Coefficient map -----
+  
+  beta_reference <- as.matrix(
+    chains[[1L]]$draws$beta
+  )
+  
+  parameter <-
+    make_bayesian_diagnostic_parameter_names(
+      model = "m3",
+      family = "beta",
+      draw_name = "beta",
+      draws = beta_reference
+    )
+  
+  if (
+    ncol(beta_reference) !=
+    nrow(beta_monitor) ||
+    length(parameter) !=
+    nrow(beta_monitor)
+  ) {
+    stop(
+      "M3 beta monitor and retained draws do not align"
+    )
+  }
+  
+  if (nrow(beta_monitor) == 0L) {
+    
+    return(
+      list(
+        parameter = character(0L),
+        
+        draws = lapply(
+          chains,
+          function(chain) {
+            matrix(
+              numeric(0L),
+              nrow = nrow(
+                as.matrix(
+                  chain$draws$beta
+                )
+              ),
+              ncol = 0L
+            )
+          }
+        )
+      )
+    )
+  }
+  
+  row <- beta_monitor[, 1L]
+  equation <- beta_monitor[, 2L]
+  
+  lag <- (
+    row - 1L
+  ) %/% N + 1L
+  
+  sender_series <- (
+    row - 1L
+  ) %% N + 1L
+  
+  receiver_series <- equation
+  
+  sender_unit <- (
+    sender_series - 1L
+  ) %/% m + 1L
+  
+  receiver_unit <- (
+    receiver_series - 1L
+  ) %/% m + 1L
+  
+  sender_variable <- (
+    sender_series - 1L
+  ) %% m + 1L
+  
+  receiver_variable <- (
+    receiver_series - 1L
+  ) %% m + 1L
+  
+  block <- as.integer(
+    (
+      lag - 1L
+    ) * n_units^2L +
+      (
+        receiver_unit - 1L
+      ) * n_units +
+      sender_unit
+  )
+  
+  lambda_position <- match(
+    block,
+    lambda_monitor
+  )
+  
+  if (anyNA(lambda_position)) {
+    stop(
+      "M3 lambda monitor does not cover every monitored beta block"
+    )
+  }
+  
+  self_block <-
+    sender_unit ==
+    receiver_unit
+  
+  same_variable <-
+    sender_variable ==
+    receiver_variable
+  
+  c_group <- ifelse(
+    self_block,
+    1L,
+    2L
+  )
+  
+  q_group <- c_group
+  
+  q_weight <- ifelse(
+    same_variable,
+    (
+      m - 1
+    ) / m,
+    -1 / m
+  )
+  
+  
+  ## Effective draws -----
+  
+  omega_draws <- lapply(
+    chains,
+    function(chain) {
+      
+      beta_draws <- as.matrix(
+        chain$draws$beta
+      )
+      
+      lambda_draws <- as.matrix(
+        chain$draws$lambda2
+      )
+      
+      tau_draws <- as.matrix(
+        chain$draws$tau2
+      )
+      
+      c_draws <- as.matrix(
+        chain$draws$c2
+      )
+      
+      q_draws <- as.matrix(
+        chain$draws$q
+      )
+      
+      retained <- nrow(
+        beta_draws
+      )
+      
+      if (
+        ncol(beta_draws) !=
+        nrow(beta_monitor) ||
+        ncol(lambda_draws) !=
+        length(lambda_monitor)
+      ) {
+        stop(
+          "Unexpected M3 monitor dimensions"
+        )
+      }
+      
+      if (
+        any(
+          c(
+            nrow(lambda_draws),
+            nrow(tau_draws),
+            nrow(c_draws),
+            nrow(q_draws)
+          ) != retained
+        )
+      ) {
+        stop(
+          "M3 hierarchy draws retain different iterations"
+        )
+      }
+      
+      if (
+        ncol(tau_draws) < 1L ||
+        ncol(c_draws) < max(c_group) ||
+        ncol(q_draws) < max(q_group)
+      ) {
+        stop(
+          "M3 hierarchy draws do not contain the required groups"
+        )
+      }
+      
+      chain_parameter <-
+        make_bayesian_diagnostic_parameter_names(
+          model = "m3",
+          family = "beta",
+          draw_name = "beta",
+          draws = beta_draws
+        )
+      
+      if (!identical(parameter, chain_parameter)) {
+        stop(
+          "M3 beta parameter order differs across chains"
+        )
+      }
+      
+      lambda_selected <- lambda_draws[
+        ,
+        lambda_position,
+        drop = FALSE
+      ]
+      
+      c_selected <- c_draws[
+        ,
+        c_group,
+        drop = FALSE
+      ]
+      
+      q_selected <- q_draws[
+        ,
+        q_group,
+        drop = FALSE
+      ]
+      
+      anatomy <- exp(
+        sweep(
+          q_selected,
+          2L,
+          q_weight,
+          FUN = "*"
+        )
+      )
+      
+      omega <-
+        lambda_selected *
+        c_selected *
+        anatomy
+      
+      omega <- sweep(
+        omega,
+        1L,
+        tau_draws[, 1L],
+        FUN = "*"
+      )
+      
+      colnames(omega) <- paste0(
+        "omega_",
+        parameter
+      )
+      
+      omega
+    }
+  )
+  
+  list(
+    parameter = parameter,
+    draws = omega_draws
+  )
+}
+
+
+# Half-t effective scales -----
+
+make_half_t_omega_draws <- function(
+    fit) {
+  
+  if (!identical(fit$model, "half_t")) {
+    stop(
+      "Half-t omega draws require a Half-t fit"
+    )
+  }
+  
+  if (
+    is.null(fit$chain_results) ||
+    is.null(fit$dimensions) ||
+    is.null(fit$global_grouping)
+  ) {
+    stop(
+      "Half-t fit is incomplete for omega diagnostics"
+    )
+  }
+  
+  chains <- fit$chain_results
+  
+  N <- as.integer(
+    fit$dimensions$N
+  )
+  
+  p_lags <- as.integer(
+    fit$dimensions$p_lags
+  )
+  
+  k <- N * p_lags
+  
+  if (
+    !fit$global_grouping %in%
     c(
       "all",
       "self_diagonal"
@@ -634,10 +888,10 @@ make_half_t_omega_draws <- function(
   }
   
   
-  ## Monitor coordinates -----
+  ## Monitor -----
   
-  monitor_list <- lapply(
-    chain_results,
+  monitors <- lapply(
+    chains,
     function(chain) {
       
       monitor <- as.matrix(
@@ -653,35 +907,26 @@ make_half_t_omega_draws <- function(
         )
       }
       
-      storage.mode(monitor) <-
-        "integer"
-      
-      colnames(monitor) <- c(
-        "row",
-        "equation"
-      )
-      
+      storage.mode(monitor) <- "integer"
       monitor
     }
   )
   
-  monitor <-
-    monitor_list[[1L]]
+  monitor <- monitors[[1L]]
   
-  for (chain in seq_along(
-    monitor_list
-  )) {
-    
-    if (
-      !identical(
-        monitor,
-        monitor_list[[chain]]
+  if (
+    !all(
+      vapply(
+        monitors,
+        identical,
+        logical(1L),
+        monitor
       )
-    ) {
-      stop(
-        "Half-t lambda monitor order differs across chains"
-      )
-    }
+    )
+  ) {
+    stop(
+      "Half-t lambda monitor order differs across chains"
+    )
   }
   
   if (
@@ -698,10 +943,10 @@ make_half_t_omega_draws <- function(
   }
   
   
-  ## Parameter map -----
+  ## Coefficient map -----
   
   lambda_reference <- as.matrix(
-    chain_results[[1L]]$draws$lambda2
+    chains[[1L]]$draws$lambda2
   )
   
   parameter <-
@@ -709,8 +954,7 @@ make_half_t_omega_draws <- function(
       model = "half_t",
       family = "lambda",
       draw_name = "lambda2",
-      draws =
-        lambda_reference
+      draws = lambda_reference
     )
   
   if (
@@ -728,59 +972,43 @@ make_half_t_omega_draws <- function(
     
     return(
       list(
-        parameter =
-          character(0L),
+        parameter = character(0L),
         
-        draws =
-          lapply(
-            chain_results,
-            function(chain) {
-              as.matrix(
-                chain$draws$lambda2
-              )
-            }
-          )
+        draws = lapply(
+          chains,
+          function(chain) {
+            as.matrix(
+              chain$draws$lambda2
+            )
+          }
+        )
       )
     )
   }
   
-  row <-
-    monitor[, 1L]
-  
-  equation <-
-    monitor[, 2L]
+  row <- monitor[, 1L]
+  equation <- monitor[, 2L]
   
   lag <- (
     row - 1L
-  ) %/%
-    N +
-    1L
+  ) %/% N + 1L
   
   sender <- (
     row - 1L
-  ) %%
-    N +
-    1L
+  ) %% N + 1L
   
-  phi2 <-
-    1 /
-    lag^2
+  phi2 <- 1 / lag^2
   
-  if (
-    global_grouping ==
-    "all"
+  tau_group <- if (
+    fit$global_grouping == "all"
   ) {
-    
-    tau_group <- rep(
+    rep(
       1L,
       nrow(monitor)
     )
-    
   } else {
-    
-    tau_group <- ifelse(
-      sender ==
-        equation,
+    ifelse(
+      sender == equation,
       1L,
       2L
     )
@@ -790,13 +1018,8 @@ make_half_t_omega_draws <- function(
   ## Effective draws -----
   
   omega_draws <- lapply(
-    seq_along(
-      chain_results
-    ),
-    function(chain_index) {
-      
-      chain <-
-        chain_results[[chain_index]]
+    chains,
+    function(chain) {
       
       lambda_draws <- as.matrix(
         chain$draws$lambda2
@@ -808,19 +1031,12 @@ make_half_t_omega_draws <- function(
       
       if (
         ncol(lambda_draws) !=
-        nrow(monitor)
-      ) {
-        stop(
-          "Unexpected Half-t lambda draw dimensions"
-        )
-      }
-      
-      if (
+        nrow(monitor) ||
         nrow(lambda_draws) !=
         nrow(tau_draws)
       ) {
         stop(
-          "Half-t lambda and tau draws retain different iterations"
+          "Unexpected Half-t hierarchy draw dimensions"
         )
       }
       
@@ -838,16 +1054,10 @@ make_half_t_omega_draws <- function(
           model = "half_t",
           family = "lambda",
           draw_name = "lambda2",
-          draws =
-            lambda_draws
+          draws = lambda_draws
         )
       
-      if (
-        !identical(
-          parameter,
-          chain_parameter
-        )
-      ) {
+      if (!identical(parameter, chain_parameter)) {
         stop(
           "Half-t lambda parameter order differs across chains"
         )
@@ -878,11 +1088,144 @@ make_half_t_omega_draws <- function(
   )
   
   list(
-    parameter =
-      parameter,
+    parameter = parameter,
+    draws = omega_draws
+  )
+}
+
+
+# Stored diagnostics -----
+
+extract_bayesian_stored_draws <- function(
+    fit,
+    family,
+    draw_name) {
+  
+  model <- fit$model
+  chains <- fit$chain_results
+  
+  chain_draws <- lapply(
+    chains,
+    function(chain) {
+      
+      if (
+        is.null(
+          chain$draws[[draw_name]]
+        )
+      ) {
+        stop(
+          "Missing ",
+          draw_name,
+          " draws for ",
+          model
+        )
+      }
+      
+      as.matrix(
+        chain$draws[[draw_name]]
+      )
+    }
+  )
+  
+  if (
+    model == "m3" &&
+    family == "c"
+  ) {
     
-    draws =
-      omega_draws
+    chain_draws <- lapply(
+      chain_draws,
+      function(draws) {
+        
+        parameter <- colnames(
+          draws
+        )
+        
+        if (is.null(parameter)) {
+          parameter <- paste0(
+            draw_name,
+            "_",
+            seq_len(ncol(draws))
+          )
+        }
+        
+        draws <- draws[
+          ,
+          -1L,
+          drop = FALSE
+        ]
+        
+        colnames(draws) <-
+          parameter[-1L]
+        
+        draws
+      }
+    )
+  }
+  
+  draw_counts <- vapply(
+    chain_draws,
+    nrow,
+    integer(1L)
+  )
+  
+  parameter_counts <- vapply(
+    chain_draws,
+    ncol,
+    integer(1L)
+  )
+  
+  if (
+    length(
+      unique(draw_counts)
+    ) != 1L
+  ) {
+    stop(
+      "Chains retain different numbers of draws"
+    )
+  }
+  
+  if (
+    length(
+      unique(parameter_counts)
+    ) != 1L
+  ) {
+    stop(
+      "Chains contain different monitor dimensions"
+    )
+  }
+  
+  if (parameter_counts[1L] == 0L) {
+    return(NULL)
+  }
+  
+  parameter <-
+    make_bayesian_diagnostic_parameter_names(
+      model = model,
+      family = family,
+      draw_name = draw_name,
+      draws = chain_draws[[1L]]
+    )
+  
+  for (chain in seq_along(chain_draws)) {
+    
+    chain_parameter <-
+      make_bayesian_diagnostic_parameter_names(
+        model = model,
+        family = family,
+        draw_name = draw_name,
+        draws = chain_draws[[chain]]
+      )
+    
+    if (!identical(parameter, chain_parameter)) {
+      stop(
+        "Diagnostic monitor order differs across chains"
+      )
+    }
+  }
+  
+  list(
+    parameter = parameter,
+    draws = chain_draws
   )
 }
 
@@ -917,11 +1260,8 @@ extract_bayesian_diagnostic_draws <- function(
     )
   }
   
-  chain_results <-
-    fit$chain_results
-  
   if (
-    length(chain_results) <
+    length(fit$chain_results) <
     2L
   ) {
     stop(
@@ -943,7 +1283,6 @@ extract_bayesian_diagnostic_draws <- function(
     half_t = c(
       beta = "beta",
       lambda = "lambda2",
-      omega = "derived",
       tau = "tau2"
     ),
     
@@ -958,200 +1297,80 @@ extract_bayesian_diagnostic_draws <- function(
   
   output <- list()
   
-  for (family in names(
-    draw_spec
-  )) {
+  for (family in names(draw_spec)) {
     
-    
-    ## Derived Half-t omega -----
-    
-    if (
-      model == "half_t" &&
-      family == "omega"
-    ) {
-      
-      omega <-
-        make_half_t_omega_draws(
-          fit
-        )
-      
-      if (
-        length(
-          omega$parameter
-        ) >
-        0L
-      ) {
-        
-        output[[family]] <-
-          omega
-      }
-      
-      next
-    }
-    
-    
-    ## Stored draws -----
-    
-    draw_name <- unname(
-      draw_spec[family]
-    )
-    
-    chain_draws <- lapply(
-      chain_results,
-      function(chain) {
-        
-        if (
-          is.null(
-            chain$draws[[draw_name]]
-          )
-        ) {
-          stop(
-            "Missing ",
-            draw_name,
-            " draws for ",
-            model
-          )
-        }
-        
-        as.matrix(
-          chain$draws[[draw_name]]
-        )
-      }
-    )
-    
-    if (
-      model == "m3" &&
-      family == "c"
-    ) {
-      
-      chain_draws <- lapply(
-        chain_draws,
-        function(draws) {
-          
-          parameter <- colnames(
-            draws
-          )
-          
-          if (is.null(parameter)) {
-            
-            parameter <- paste0(
-              draw_name,
-              "_",
-              seq_len(
-                ncol(draws)
-              )
-            )
-          }
-          
-          draws <- draws[
-            ,
-            -1L,
-            drop = FALSE
-          ]
-          
-          colnames(draws) <-
-            parameter[-1L]
-          
-          draws
-        }
+    stored <- extract_bayesian_stored_draws(
+      fit = fit,
+      family = family,
+      draw_name = unname(
+        draw_spec[family]
       )
-    }
-    
-    draws_per_chain <- vapply(
-      chain_draws,
-      nrow,
-      integer(1L)
     )
     
-    parameters_per_chain <- vapply(
-      chain_draws,
-      ncol,
-      integer(1L)
-    )
-    
-    if (
-      length(
-        unique(
-          draws_per_chain
-        )
-      ) != 1L
-    ) {
-      stop(
-        "Chains retain different numbers of draws"
-      )
+    if (!is.null(stored)) {
+      output[[family]] <- stored
     }
-    
-    if (
-      length(
-        unique(
-          parameters_per_chain
-        )
-      ) != 1L
-    ) {
-      stop(
-        "Chains contain different monitor dimensions"
-      )
-    }
-    
-    if (
-      parameters_per_chain[1L] ==
-      0L
-    ) {
-      next
-    }
-    
-    parameter <-
-      make_bayesian_diagnostic_parameter_names(
-        model = model,
-        family = family,
-        draw_name = draw_name,
-        draws = chain_draws[[1L]]
-      )
-    
-    for (chain in seq_along(
-      chain_draws
-    )) {
-      
-      chain_parameter <-
-        make_bayesian_diagnostic_parameter_names(
-          model = model,
-          family = family,
-          draw_name = draw_name,
-          draws = chain_draws[[chain]]
-        )
-      
-      if (
-        !identical(
-          parameter,
-          chain_parameter
-        )
-      ) {
-        stop(
-          "Diagnostic monitor order differs across chains"
-        )
-      }
-    }
-    
-    output[[family]] <- list(
-      parameter =
-        parameter,
-      
-      draws =
-        chain_draws
-    )
   }
   
   
-  ## Effective-scale pairing -----
+  ## Derived omega -----
+  
+  if (model == "m3") {
+    
+    omega <- make_m3_omega_draws(
+      fit
+    )
+    
+    if (
+      length(omega$parameter) >
+      0L
+    ) {
+      output$omega <- omega
+    }
+  }
+  
+  if (model == "half_t") {
+    
+    omega <- make_half_t_omega_draws(
+      fit
+    )
+    
+    if (
+      length(omega$parameter) >
+      0L
+    ) {
+      output$omega <- omega
+    }
+  }
+  
+  
+  ## Pairing checks -----
   
   if (
-    all(
-      c(
-        "lambda",
-        "omega"
-      ) %in%
-      names(output)
-    )
+    "omega" %in%
+    names(output)
+  ) {
+    
+    if (
+      !identical(
+        output$beta$parameter,
+        output$omega$parameter
+      )
+    ) {
+      stop(
+        "Beta and omega diagnostic coordinates do not align"
+      )
+    }
+  }
+  
+  if (
+    model %in%
+    c(
+      "half_t",
+      "gigg"
+    ) &&
+    "omega" %in%
+    names(output)
   ) {
     
     if (
@@ -1186,141 +1405,112 @@ summarise_bayesian_diagnostics <- function(
     )
   }
   
-  extracted <-
-    extract_bayesian_diagnostic_draws(
-      fit
-    )
+  extracted <- extract_bayesian_diagnostic_draws(
+    fit
+  )
   
-  rows <- list()
-  
-  row_index <- 0L
-  
-  for (family in names(
-    extracted
-  )) {
-    
-    family_draws <-
-      extracted[[family]]
-    
-    n_chains <- length(
-      family_draws$draws
-    )
-    
-    draws_per_chain <- nrow(
-      family_draws$draws[[1L]]
-    )
-    
-    n_parameters <- length(
-      family_draws$parameter
-    )
-    
-    total_draws <-
-      n_chains *
-      draws_per_chain
-    
-    draw_array <- array(
-      NA_real_,
-      dim = c(
-        draws_per_chain,
-        n_chains,
+  rows <- lapply(
+    names(extracted),
+    function(family) {
+      
+      family_draws <- extracted[[family]]
+      
+      n_chains <- length(
+        family_draws$draws
+      )
+      
+      draws_per_chain <- nrow(
+        family_draws$draws[[1L]]
+      )
+      
+      n_parameters <- length(
+        family_draws$parameter
+      )
+      
+      total_draws <-
+        n_chains *
+        draws_per_chain
+      
+      draw_array <- array(
+        NA_real_,
+        dim = c(
+          draws_per_chain,
+          n_chains,
+          n_parameters
+        ),
+        dimnames = list(
+          iteration = NULL,
+          chain = NULL,
+          variable =
+            family_draws$parameter
+        )
+      )
+      
+      for (chain in seq_len(n_chains)) {
+        draw_array[
+          ,
+          chain,
+        ] <- family_draws$draws[[chain]]
+      }
+      
+      diagnostic_summary <- as.data.frame(
+        posterior::summarise_draws(
+          posterior::as_draws_array(
+            draw_array
+          ),
+          "rhat",
+          "ess_bulk",
+          "ess_tail"
+        )
+      )
+      
+      if (
+        nrow(diagnostic_summary) !=
         n_parameters
-      ),
-      dimnames = list(
-        iteration = NULL,
-        chain = NULL,
-        variable =
-          family_draws$parameter
-      )
-    )
-    
-    for (chain in seq_len(
-      n_chains
-    )) {
+      ) {
+        stop(
+          "Unexpected posterior diagnostic dimensions"
+        )
+      }
       
-      draw_array[
-        ,
-        chain,
-      ] <-
-        family_draws$draws[[chain]]
-    }
-    
-    posterior_draws <-
-      posterior::as_draws_array(
-        draw_array
-      )
-    
-    diagnostic_summary <- as.data.frame(
-      posterior::summarise_draws(
-        posterior_draws,
-        "rhat",
-        "ess_bulk",
-        "ess_tail"
-      )
-    )
-    
-    if (
-      nrow(diagnostic_summary) !=
-      n_parameters
-    ) {
-      stop(
-        "Unexpected posterior diagnostic dimensions"
-      )
-    }
-    
-    row_index <-
-      row_index +
-      1L
-    
-    rows[[row_index]] <- data.frame(
-      family =
-        family,
-      
-      parameter =
-        family_draws$parameter,
-      
-      rhat =
-        as.numeric(
+      data.frame(
+        family = family,
+        parameter =
+          family_draws$parameter,
+        
+        rhat = as.numeric(
           diagnostic_summary[["rhat"]]
         ),
-      
-      ess_bulk =
-        as.numeric(
+        
+        ess_bulk = as.numeric(
           diagnostic_summary[["ess_bulk"]]
         ),
-      
-      ess_tail =
-        as.numeric(
+        
+        ess_tail = as.numeric(
           diagnostic_summary[["ess_tail"]]
         ),
-      
-      inefficiency_factor =
-        total_draws /
-        as.numeric(
-          diagnostic_summary[["ess_bulk"]]
-        ),
-      
-      n_chains =
-        n_chains,
-      
-      draws_per_chain =
-        draws_per_chain,
-      
-      total_draws =
-        total_draws,
-      
-      stringsAsFactors =
-        FALSE
-    )
-  }
+        
+        inefficiency_factor =
+          total_draws /
+          as.numeric(
+            diagnostic_summary[["ess_bulk"]]
+          ),
+        
+        n_chains = n_chains,
+        draws_per_chain =
+          draws_per_chain,
+        total_draws = total_draws,
+        stringsAsFactors = FALSE
+      )
+    }
+  )
   
   diagnostics <- do.call(
     rbind,
     rows
   )
   
-  rownames(
-    diagnostics
-  ) <- NULL
+  rownames(diagnostics) <- NULL
   
   diagnostics
 }
