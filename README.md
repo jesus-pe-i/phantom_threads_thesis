@@ -1,6 +1,6 @@
 # Phantom Threads
 
-Replication code for ***Phantom Threads: Structured Priors for Network Recovery on Block VAR Models***.
+Replication code for ***Phantom Threads: Structured Estimation for Network Recovery on Block VAR Models***.
 
 This repository contains the estimation, simulation, benchmarking, validation, and empirical-analysis code developed for the thesis. The project studies high-dimensional VARs in which variables are grouped into multivariate units, so that the VAR coefficient matrices define a **directed, lag-specific network between units**.
 
@@ -241,4 +241,4 @@ Full simulation campaign outputs and thesis figure/table artifacts are not inclu
 If you use this code, please cite:
 
 > Pinera Esquivel, Jesus Antonio (2026).  
-> ***Phantom Threads: Structured Priors for Network Recovery on Block VAR Models.***
+> ***Phantom Threads: Structured Estimation for Network Recovery on Block VAR Models.***
