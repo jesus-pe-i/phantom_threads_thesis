@@ -33,7 +33,7 @@ Seven estimators are implemented behind a common interface:
 * **gEN** — blockwise group elastic net via `adelie`
 * **HLAG** — hierarchical lag regularisation via `BigVAR`
 * **MAR** — Matrix Autoregression
-* **NIRVAR** — Network-Informed Restricted VAR
+* **NIRVAR** — adapted Network-Informed Restricted VAR
 
 The Bayesian models use purpose-built C++ Gibbs samplers through `RcppArmadillo`.
 
@@ -93,12 +93,11 @@ install.packages(
     "urca",
     "adelie",
     "BigVAR",
-    "mclust"
+    "mclust",
+    "posterior"
   )
 )
 ```
-
-Additional estimator-specific dependencies may be required by MAR and NIRVAR.
 
 A working C++ toolchain is also required for the Bayesian samplers.
 
@@ -109,14 +108,6 @@ Load the benchmark infrastructure:
 ```r
 source("R/benchmarks.R")
 source_benchmark_models()
-```
-
-Compile the Bayesian engines:
-
-```r
-load_half_t_cpp()
-load_gigg_cpp()
-load_m3_cpp()
 ```
 
 Input data are supplied as a list of unit-level matrices:
@@ -237,14 +228,6 @@ Rscript scripts/validation/validate_benchmarks.R
 
 These cover the common VAR representation, Bayesian sampler infrastructure, fixed-seed reproducibility, model loading and dispatch, coefficient and network reconstruction, nested benchmark records, benchmark metrics, Bayesian settings, runtimes, and direct-versus-dispatch equivalence.
 
-## Thesis results
-
-The simulation study considers block-diagonal, community, core-periphery, hub, and larger complex networks.
-
-Overall, no estimator dominates every inferential target. M3 provides particularly strong control of inactive network leakage and strong topology recovery, while GIGG allows greater flexibility in recovering active magnitudes. The group elastic net often provides a strong compromise, while HLAG performs well for active magnitudes but can be weaker for lag attribution.
-
-The Mexican banking application finds dominant own-bank dynamics alongside a structured cross-bank predictive network. Across the four empirical estimators, Banregio emerges as the strongest sender, while the Bayesian specifications recover closely related rankings of cross-bank relationships.
-
 ## Reproducibility note
 
 This repository contains the reusable model, simulation, benchmark, validation, and empirical-analysis infrastructure used in the thesis.
@@ -259,7 +242,3 @@ If you use this code, please cite:
 
 > Pinera Esquivel, Jesus Antonio (2026).  
 > ***Phantom Threads: Structured Priors for Network Recovery on Block VAR Models.***
-
-## Author
-
-**Jesus Antonio Pinera Esquivel**
